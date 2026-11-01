@@ -392,9 +392,10 @@ local function find_archive_command(name, options)
 	end
 end
 
-local function input_level(config)
+local function input_level(config, current)
 	local value, event = ya.input({
 		title = string.format("Compression level (%d - %d, blank for default):", config.level_min, config.level_max),
+		value = current and tostring(current) or "",
 		pos = { "top-center", y = 3, w = 50 },
 	})
 	if event ~= 1 then
@@ -410,14 +411,93 @@ local function input_level(config)
 	return level, true
 end
 
-local option_flags = { p = "password", h = "headers", l = "ask_level", s = "silent" }
+local format_choices = {
+	{ "z", "zip" },
+	{ "7", "7z" },
+	{ "r", "rar" },
+	{ "t", "tar" },
+	{ "g", "tar.gz" },
+	{ "x", "tar.xz" },
+	{ "b", "tar.bz2" },
+	{ "s", "tar.zst" },
+	{ "4", "tar.lz4" },
+	{ "a", "tar.lha" },
+}
+
+local function configure(state)
+	local function formats()
+		local available = {}
+		for _, choice in ipairs(format_choices) do
+			if find_archive_command("archive." .. choice[2], state) then
+				available[#available + 1] = {
+					on = choice[1],
+					desc = choice[2],
+					extension = choice[2],
+				}
+			end
+		end
+		return available
+	end
+
+	if not find_archive_command("archive." .. state.extension, state) then
+		local available = formats()
+		if #available == 0 then
+			notify("No archive program supports the requested format and options", "error")
+			return
+		end
+		state.extension = available[1].extension
+	end
+
+	while true do
+		local config = find_archive_command("archive." .. state.extension, state)
+		local items = { { on = "f", desc = "Format: " .. state.extension } }
+		if config.passwordable or find_archive_command("archive." .. state.extension, { password = true }) then
+			items[#items + 1] = { on = "p", desc = "Password: " .. (state.password and "on" or "off") }
+		end
+		if config.header_arg then
+			items[#items + 1] = { on = "h", desc = "Hide filenames: " .. (state.headers and "on" or "off") }
+		end
+		if config.level_arg then
+			items[#items + 1] = { on = "l", desc = "Level: " .. (state.level or "default") }
+		end
+		items[#items + 1] = { on = "c", desc = "Create" }
+		local choice = ya.which({ cands = items })
+		if not choice then
+			return
+		end
+		local key = items[choice].on
+		if key == "c" then
+			return state
+		elseif key == "f" then
+			local available = formats()
+			local picked = ya.which({ cands = available })
+			if picked then
+				state.extension = available[picked].extension
+				state.level = nil
+			end
+		elseif key == "p" then
+			state.password = not state.password
+			state.headers = state.password and state.headers
+		elseif key == "h" then
+			state.headers = not state.headers
+			state.password = state.password or state.headers
+		elseif key == "l" then
+			local level, accepted = input_level(config, state.level)
+			if accepted then
+				state.level, state.ask_level = level, false
+			end
+		end
+	end
+end
+
+local option_flags = { p = "password", h = "headers", l = "ask_level", s = "silent", i = "interactive" }
 
 return {
 	entry = function(_, job)
 		ya.async(function()
 			command_cache = {}
 			local args = job.args or {}
-			local state = { extension = "zip" }
+			local state = { extension = "zip", interactive = #args == 0 }
 			for _, arg in ipairs(args) do
 				if arg:match("^%-%w+$") then
 					for flag in arg:sub(2):gmatch(".") do
@@ -444,11 +524,14 @@ return {
 			if not root then
 				notify("Select files with a shared parent directory", "error")
 				return
+			elseif state.interactive and not configure(state) then
+				return
 			end
 
 			local default_filename = default_name .. "." .. state.extension
 			local name, event = ya.input({
 				title = "Create archive:",
+				value = state.interactive and default_filename or "",
 				pos = { "top-center", y = 3, w = 40 },
 			})
 			if event ~= 1 then
@@ -493,7 +576,7 @@ return {
 			if config.level_arg then
 				if state.ask_level then
 					local accepted
-					state.level, accepted = input_level(config)
+					state.level, accepted = input_level(config, state.level)
 					if not accepted then
 						return
 					end

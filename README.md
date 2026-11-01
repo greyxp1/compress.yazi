@@ -77,53 +77,24 @@ To enable additional compression formats and features on Windows, follow these s
 
 Add this to your `keymap.toml`:
 
-
 ```toml
 [[mgr.prepend_keymap]]
-on   = [ "c", "a", "a" ]
-run  = "plugin compress"
-desc = "Archive selected files"
-
-[[mgr.prepend_keymap]]
-on   = [ "c", "a", "p" ]
-run  = "plugin compress -p"
-desc = "Archive selected files (password)"
-
-[[mgr.prepend_keymap]]
-on   = [ "c", "a", "h" ]
-run  = "plugin compress '-ph 7z'"
-desc = "Archive selected files (password+header)"
-
-[[mgr.prepend_keymap]]
-on   = [ "c", "a", "l" ]
-run  = "plugin compress -l"
-desc = "Archive selected files (compression level)"
-
-[[mgr.prepend_keymap]]
-on   = [ "c", "a", "u" ]
-run  = "plugin compress '-phl 7z'"
-desc = "Archive selected files (password+header+level)"
+on = "C"
+run = "plugin compress"
+desc = "Create archive"
 ```
 
 ## 🛠️ Usage
 
-1. **Select files/folders** in Yazi.
-2. Press <kbd>c</kbd> <kbd>a</kbd> to open the archive dialog.
-3. Choose:
-   - <kbd>a</kbd> for a standard archive
-   - <kbd>p</kbd> for password protection (zip/7z/rar)
-   - <kbd>h</kbd> to encrypt header (7z/rar)
-   - <kbd>l</kbd> to set compression level (all compression algorithims)
-   - <kbd>u</kbd> for all options together
-4. **Type a name** for your archive (or leave blank for suggested name).
-5. **Enter and confirm your password** and/or **compression level** if prompted.
-6. **Overwrite protect** if a file already exists, the new file will be given a suffix _#.
-7. Enjoy your shiny new archive!
+Select files, or leave the selection empty to use the hovered file. Run the plugin, choose options and enter an archive name. Leave the name blank to use the selected filename or current directory name. Existing archives are preserved by choosing a unique filename.
+
+Pass a format or flags without `-i` to skip the menu.
 
 ## 🏳️‍🌈 Flags
 
 - Combine flags for more power!
 - when separating flags with spaces, make sure to single quote them (eg., `'-ph rar'`)
+- `-i` Show the menu when passing other arguments
 - `-p` Password protect (zip/7z/rar)
 - `-h` Encrypt header and require a password (7z/rar)
 - `-l` Set compression level (all compression algorithims)
