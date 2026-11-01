@@ -23,19 +23,7 @@ end
 
 local function is_valid_filename(name)
 	name = name:match("^%s*(.-)%s*$")
-	if name == "" then
-		return false
-	end
-	if is_windows then
-		if name:find('[<>:"/\\|%?%*]') then
-			return false
-		end
-	else
-		if name:find("/") or name:find("%z") then
-			return false
-		end
-	end
-	return true
+	return name ~= "" and not name:find(is_windows and '[<>:"/\\|%?%*]' or "[/%z]")
 end
 
 local function notify(message, level)
@@ -216,18 +204,6 @@ local function reported_progress(kind, state, chunk, event, stats)
 	return amount and math.min(99, math.floor(amount * 100)) or state.last
 end
 
-local function add_compression_level(target_args, level_arg, level_value)
-	if type(level_arg) == "table" then
-		for i = 1, #level_arg - 1 do
-			table.insert(target_args, i, level_arg[i])
-		end
-		table.insert(target_args, #level_arg, level_arg[#level_arg] .. level_value)
-	else
-		-- LHA requires its command before compression switches.
-		table.insert(target_args, level_arg == "-o" and 2 or 1, level_arg .. level_value)
-	end
-end
-
 local function input_password()
 	local output_password, event = ya.input({
 		title = "Enter password:",
@@ -273,7 +249,7 @@ local archive_commands = {
 			command = { "bsdtar", "tar" },
 			bsdtar = true,
 			args = { "--format=zip", "-cf" },
-			level_arg = { "--options", "zip:compression-level=" },
+			level_arg = "--options=zip:compression-level=",
 			level_min = 0,
 			level_max = 9,
 		},
@@ -359,7 +335,7 @@ for ext, compressor in pairs(compressors) do
 			command = { "bsdtar", "tar" },
 			bsdtar = compressor.bsdtar,
 			args = { compressor.bsdtar, "-cf" },
-			level_arg = { "--options", compressor.option .. ":compression-level=" },
+			level_arg = "--options=" .. compressor.option .. ":compression-level=",
 			level_min = 1,
 			level_max = compressor.bsdtar_level_max or compressor.level_max,
 		}
@@ -432,7 +408,6 @@ local function configure(state)
 				available[#available + 1] = {
 					on = choice[1],
 					desc = choice[2],
-					extension = choice[2],
 				}
 			end
 		end
@@ -445,7 +420,7 @@ local function configure(state)
 			notify("No archive program supports the requested format and options", "error")
 			return
 		end
-		state.extension = available[1].extension
+		state.extension = available[1].desc
 	end
 
 	while true do
@@ -472,7 +447,7 @@ local function configure(state)
 			local available = formats()
 			local picked = ya.which({ cands = available })
 			if picked then
-				state.extension = available[picked].extension
+				state.extension = available[picked].desc
 				state.level = nil
 			end
 		elseif key == "p" then
@@ -586,10 +561,11 @@ return {
 						notify("The selected compression level is unsupported by this archive format", "error")
 						return
 					end
-					add_compression_level(
+					-- LHA requires its command before compression switches.
+					table.insert(
 						config.compress and config.compress_args or config.args,
-						config.level_arg,
-						tostring(state.level)
+						config.level_arg == "-o" and 2 or 1,
+						config.level_arg .. state.level
 					)
 				end
 			end
@@ -663,12 +639,9 @@ return {
 						kind = "entries"
 						command:arg("-v")
 					end
-				elseif program == "zstd" then
+				elseif program == "zstd" or program == "lz4" then
 					kind = "bytes"
-					command:arg("--progress")
-				elseif program == "lz4" then
-					kind = "bytes"
-					command:arg("-v")
+					command:arg(program == "zstd" and "--progress" or "-v")
 				elseif program == "lha" then
 					kind = "lha"
 				end
@@ -728,10 +701,7 @@ return {
 						stats =
 							input_stats(root, filenames, command_version(config.cmd):find("GNU tar", 1, true) ~= nil)
 					end
-					local files = { temp_output }
-					for _, file in ipairs(filenames) do
-						files[#files + 1] = file
-					end
+					local files = table.move(filenames, 1, #filenames, 2, { temp_output })
 					run(
 						config.cmd,
 						config.args,
