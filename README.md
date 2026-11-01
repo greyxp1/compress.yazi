@@ -43,6 +43,8 @@
 
 ## ⚡️ Installation
 
+Requires Yazi 26.9.1 or newer.
+
 ```bash
 # Unix
 git clone https://github.com/KKV9/compress.yazi.git ~/.config/yazi/plugins/compress.yazi
@@ -144,6 +146,7 @@ desc = "Archive selected files to rar (password+level)"
 - The file extension **must** match a supported type.
 - The required compression tool **must** be installed and in your `PATH` (7zip/rar etc.).
 - Password-protected ZIP/CBZ archives use AES-256 and require 7-Zip and an AES-compatible reader.
+- Press `w` to see compression progress. Select `Compress …` and press `x` to cancel. Progress may advance between files or stages.
 - If no extention is provided, the default extention (zip) will be appended automatically.
 - If you leave the filename blank, the plugin will use the selected filename or parent directory, when multiple files are selected, to name the archive.
 
