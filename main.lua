@@ -205,33 +205,29 @@ local function reported_progress(kind, state, chunk, event, stats)
 end
 
 local function input_password(is_zip)
-	local output_password, event = ya.input({
-		title = "Enter password:",
-		obscure = true,
-		pos = { "top-center", y = 3, w = 40 },
-	})
-	if event ~= 1 or output_password == "" then
-		notify("Password required, operation aborted", "error")
-		return nil
+	local password
+	for i, title in ipairs({ "Enter password:", "Confirm password:" }) do
+		local value, event = ya.input({
+			title = title,
+			obscure = true,
+			pos = { "top-center", y = 3, w = 40 },
+		})
+		if event ~= 1 or value == "" then
+			notify(
+				i == 1 and "Password required, operation aborted" or "Password confirmation required, operation aborted",
+				"error"
+			)
+			return nil
+		elseif i == 1 and is_zip and (#value > 99 or value:find("[^\32-\127]")) then
+			notify("ZIP passwords must contain 1-99 ASCII characters", "error")
+			return nil
+		elseif password and value ~= password then
+			notify("Passwords do not match", "error")
+			return nil
+		end
+		password = value
 	end
-	if is_zip and (#output_password > 99 or output_password:find("[^\32-\127]")) then
-		notify("ZIP passwords must contain 1-99 ASCII characters", "error")
-		return nil
-	end
-	local output_confirm_password, event = ya.input({
-		title = "Confirm password:",
-		obscure = true,
-		pos = { "top-center", y = 3, w = 40 },
-	})
-	if event ~= 1 or output_confirm_password == "" then
-		notify("Password confirmation required, operation aborted", "error")
-		return nil
-	end
-	if output_password ~= output_confirm_password then
-		notify("Passwords do not match", "error")
-		return nil
-	end
-	return output_password
+	return password
 end
 
 -- Relative inputs let -spf preserve directories without storing absolute paths.
@@ -284,21 +280,19 @@ local archive_commands = {
 }
 
 local compressors = {
-	gz = { command = "gzip", level_max = 9, sevenzip = "gzip", bsdtar = "-z", option = "gzip" },
-	xz = { command = "xz", level_max = 9, sevenzip = "xz", bsdtar = "-J", option = "xz" },
-	bz2 = { command = "bzip2", level_max = 9, sevenzip = "bzip2", bsdtar = "-j", option = "bzip2" },
+	gz = { command = "gzip", level_max = 9, sevenzip = "gzip", bsdtar = "-z" },
+	xz = { command = "xz", level_max = 9, sevenzip = "xz", bsdtar = "-J" },
+	bz2 = { command = "bzip2", level_max = 9, sevenzip = "bzip2", bsdtar = "-j" },
 	zst = {
 		command = "zstd",
 		args = { "--ultra" },
 		level_max = 22,
 		bsdtar = "--zstd",
-		option = "zstd",
 	},
 	lz4 = {
 		command = "lz4",
 		level_max = 12,
 		bsdtar = "--lz4",
-		option = "lz4",
 		bsdtar_level_max = 9,
 	},
 	lha = {
@@ -339,7 +333,7 @@ for ext, compressor in pairs(compressors) do
 			command = { "bsdtar", "tar" },
 			bsdtar = compressor.bsdtar,
 			args = { compressor.bsdtar, "-cf" },
-			level_arg = "--options=" .. compressor.option .. ":compression-level=",
+			level_arg = "--options=" .. compressor.command .. ":compression-level=",
 			level_min = 1,
 			level_max = compressor.bsdtar_level_max or compressor.level_max,
 		}
@@ -624,7 +618,8 @@ return {
 			end
 
 			local child, temp_dir, destination
-			local function run(program, args, files, cwd, phase, stats)
+			local function run(program, args, files, cwd, action, stats)
+				local phase = action .. " " .. ya.quote(name) .. " with " .. program
 				task:log(phase)
 				local command, kind = Command(program)
 				if program:match("^7z") then
@@ -706,14 +701,7 @@ return {
 							input_stats(root, filenames, command_version(config.cmd):find("GNU tar", 1, true) ~= nil)
 					end
 					local files = table.move(filenames, 1, #filenames, 2, { temp_output })
-					run(
-						config.cmd,
-						config.args,
-						files,
-						root,
-						"Create " .. ya.quote(name) .. " with " .. config.cmd,
-						stats
-					)
+					run(config.cmd, config.args, files, root, "Create", stats)
 					if config.compress then
 						local relative = is_windows and ".\\" or "./"
 						files = { relative .. intermediate }
@@ -728,7 +716,7 @@ return {
 							config.compress_args,
 							files,
 							temp_dir,
-							"Compress " .. ya.quote(name) .. " with " .. config.compress,
+							"Compress",
 							{ bytes = stat and stat.len or 0 }
 						)
 					end
