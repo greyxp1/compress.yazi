@@ -204,7 +204,7 @@ local function reported_progress(kind, state, chunk, event, stats)
 	return amount and math.min(99, math.floor(amount * 100)) or state.last
 end
 
-local function input_password()
+local function input_password(is_zip)
 	local output_password, event = ya.input({
 		title = "Enter password:",
 		obscure = true,
@@ -212,6 +212,10 @@ local function input_password()
 	})
 	if event ~= 1 or output_password == "" then
 		notify("Password required, operation aborted", "error")
+		return nil
+	end
+	if is_zip and (#output_password > 99 or output_password:find("[^\32-\127]")) then
+		notify("ZIP passwords must contain 1-99 ASCII characters", "error")
 		return nil
 	end
 	local output_confirm_password, event = ya.input({
@@ -230,7 +234,7 @@ local function input_password()
 	return output_password
 end
 
--- -spd keeps literal filenames from expanding to unselected files.
+-- Relative inputs let -spf preserve directories without storing absolute paths.
 local sevenzip_commands = { "7zz", "7z", "7za" }
 local tar_commands = { "tar", "bsdtar" }
 
@@ -239,7 +243,7 @@ local archive_commands = {
 		{ command = "zip", args = { "-r" }, level_arg = "-", level_min = 0, level_max = 9 },
 		{
 			command = sevenzip_commands,
-			args = { "a", "-tzip", "-spd", "-mem=AES256" },
+			args = { "a", "-tzip", "-spd", "-spf", "-snl", "-mem=AES256" },
 			level_arg = "-mx=",
 			level_min = 0,
 			level_max = 9,
@@ -257,7 +261,7 @@ local archive_commands = {
 	["7z"] = {
 		{
 			command = sevenzip_commands,
-			args = { "a", "-t7z", "-spd" },
+			args = { "a", "-t7z", "-spd", "-spf", "-snl" },
 			level_arg = "-mx=",
 			level_min = 0,
 			level_max = 9,
@@ -384,7 +388,7 @@ local function input_level(config, current)
 		notify("Invalid level specified. Using defaults.", "warn")
 		return nil, true
 	end
-	return level, true
+	return math.floor(level), true
 end
 
 local format_choices = {
@@ -539,7 +543,7 @@ return {
 				end
 			end
 			if state.password then
-				local password = input_password()
+				local password = input_password(canonical_archive_name(name):sub(-4) == ".zip")
 				if not password then
 					return
 				end
