@@ -73,12 +73,12 @@ local function find_command_name(cmd_list, bsdtar)
 	for _, cmd in ipairs(type(cmd_list) == "table" and cmd_list or { cmd_list }) do
 		if is_command_available(cmd, bsdtar) then
 			if not command_cache[cmd .. ":p7zip"] then
-				return cmd
+				return cmd, false
 			end
 			fallback = fallback or cmd
 		end
 	end
-	return fallback
+	return fallback, fallback ~= nil
 end
 
 -- Archive from one shared directory so equal basenames keep distinct paths.
@@ -359,7 +359,7 @@ local function find_archive_command(name, options)
 	local fallback
 	for _, candidate in ipairs(candidates) do
 		if (not options.password or candidate.passwordable) and (not options.headers or candidate.header_arg) then
-			local command = find_command_name(candidate.command, candidate.bsdtar)
+			local command, p7zip = find_command_name(candidate.command, candidate.bsdtar)
 			local compress = candidate.compress and find_command_name(candidate.compress)
 			if command and (not candidate.compress or compress) then
 				local config = {}
@@ -367,7 +367,7 @@ local function find_archive_command(name, options)
 					config[key] = value
 				end
 				config.cmd, config.compress = command, compress
-				config.p7zip = command_cache[command .. ":p7zip"]
+				config.p7zip = p7zip
 				config.args = { table.unpack(candidate.args) }
 				config.compress_args = { table.unpack(candidate.compress_args or {}) }
 				if not config.p7zip then
