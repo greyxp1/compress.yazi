@@ -325,15 +325,24 @@ for ext, compressor in pairs(compressors) do
 		},
 	}
 	if compressor.sevenzip then
+		local raw = {
+			command = sevenzip_commands,
+			args = { "a", "-t" .. compressor.sevenzip, "-spd" },
+			single = true,
+			level_arg = "-mx=",
+			level_min = 0,
+			level_max = 9,
+		}
+		archive_commands[ext] = { raw }
 		-- 7-Zip parallelizes bzip2 at a higher memory cost.
 		table.insert(candidates, ext == "bz2" and 1 or #candidates + 1, {
 			command = tar_commands,
 			args = { "-cf" },
-			compress = sevenzip_commands,
-			compress_args = { "a", "-t" .. compressor.sevenzip, "-spd" },
-			level_arg = "-mx=",
+			compress = raw.command,
+			compress_args = raw.args,
+			level_arg = raw.level_arg,
 			level_min = 1,
-			level_max = 9,
+			level_max = raw.level_max,
 		})
 	end
 	if compressor.bsdtar then
@@ -410,6 +419,9 @@ local format_choices = {
 	{ "s", "tar.zst" },
 	{ "4", "tar.lz4" },
 	{ "a", "tar.lha" },
+	{ "G", "gz" },
+	{ "X", "xz" },
+	{ "B", "bz2" },
 }
 
 local function configure(state)
@@ -542,9 +554,16 @@ return {
 				)
 				return
 			end
-			if config.p7zip then
+			if config.single then
+				local stat = #filenames == 1 and fs.cha(Url(root):join(filenames[1]), false)
+				-- Yazi exposes regular-file identity through the POSIX file-type bits.
+				if not stat or stat.mode & 0xF000 ~= 0x8000 then
+					notify("Single-file compression requires one regular file", "error")
+					return
+				end
+			elseif config.p7zip then
 				notify(
-					"Archive creation requires current 7-Zip (7zz). Legacy p7zip can only compress TAR files.",
+					"Archive creation requires current 7-Zip (7zz). Legacy p7zip can only compress single files.",
 					"error"
 				)
 				return

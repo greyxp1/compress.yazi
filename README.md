@@ -38,8 +38,9 @@ On Windows, add the installed archive tools to your `PATH`, such as `C:\Program 
 | `.tar.zst`, `.tzst` | TAR with `zstd`, or BSD tar |
 | `.tar.lz4`, `.tlz4` | TAR with `lz4`, or BSD tar |
 | `.tar.lha` | TAR with `lha` |
+| `.gz`, `.xz`, `.bz2` | 7-Zip, one regular file |
 
-Maintained 7-Zip is preferred among `7zz`, `7z` and `7za`. Legacy p7zip is supported only for TAR compression. BSD tar compression depends on its built-in codecs.
+Maintained 7-Zip is preferred among `7zz`, `7z` and `7za`. Legacy p7zip is supported only for single-file compression. BSD tar compression depends on its built-in codecs.
 
 Password-protected ZIP/CBZ archives use AES-256 and require 7-Zip and an AES-compatible reader.
 
