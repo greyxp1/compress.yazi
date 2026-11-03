@@ -58,19 +58,27 @@ local function is_command_available(cmd, bsdtar)
 			end
 			command_cache[key] = available
 		else
-			local status = Command(cmd):arg("--help"):status()
-			command_cache[key] = status ~= nil and status.code ~= nil
+			local output = Command(cmd):arg("--help"):output()
+			command_cache[key] = output ~= nil and output.status.code ~= nil
+			if output and cmd:match("^7z") then
+				command_cache[cmd .. ":p7zip"] = output.stdout:find("p7zip", 1, true) ~= nil
+			end
 		end
 	end
 	return command_cache[key]
 end
 
 local function find_command_name(cmd_list, bsdtar)
+	local fallback
 	for _, cmd in ipairs(type(cmd_list) == "table" and cmd_list or { cmd_list }) do
 		if is_command_available(cmd, bsdtar) then
-			return cmd
+			if not command_cache[cmd .. ":p7zip"] then
+				return cmd
+			end
+			fallback = fallback or cmd
 		end
 	end
+	return fallback
 end
 
 -- Archive from one shared directory so equal basenames keep distinct paths.
@@ -348,6 +356,7 @@ local function find_archive_command(name, options)
 	if not candidates then
 		return false
 	end
+	local fallback
 	for _, candidate in ipairs(candidates) do
 		if (not options.password or candidate.passwordable) and (not options.headers or candidate.header_arg) then
 			local command = find_command_name(candidate.command, candidate.bsdtar)
@@ -358,12 +367,17 @@ local function find_archive_command(name, options)
 					config[key] = value
 				end
 				config.cmd, config.compress = command, compress
+				config.p7zip = command_cache[command .. ":p7zip"]
 				config.args = { table.unpack(candidate.args) }
 				config.compress_args = { table.unpack(candidate.compress_args or {}) }
-				return config
+				if not config.p7zip then
+					return config
+				end
+				fallback = fallback or config
 			end
 		end
 	end
+	return fallback
 end
 
 local function input_level(config, current)
@@ -524,6 +538,13 @@ return {
 				notify(
 					config == false and "Unsupported file extension"
 						or "Could not find a suitable archive program for the selected format and options",
+					"error"
+				)
+				return
+			end
+			if config.p7zip then
+				notify(
+					"Archive creation requires current 7-Zip (7zz). Legacy p7zip can only compress TAR files.",
 					"error"
 				)
 				return

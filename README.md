@@ -39,7 +39,7 @@ On Windows, add the installed archive tools to your `PATH`, such as `C:\Program 
 | `.tar.lz4`, `.tlz4` | TAR with `lz4`, or BSD tar |
 | `.tar.lha` | TAR with `lha` |
 
-7-Zip is detected as `7zz`, `7z` or `7za`, in that order. BSD tar compression depends on its built-in codecs.
+Maintained 7-Zip is preferred among `7zz`, `7z` and `7za`. Legacy p7zip is supported only for TAR compression. BSD tar compression depends on its built-in codecs.
 
 Password-protected ZIP/CBZ archives use AES-256 and require 7-Zip and an AES-compatible reader.
 
